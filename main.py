@@ -24,25 +24,39 @@ MODEL_PATH = "bert_domates_model_quant.onnx"
 def startup_event():
     global tokenizer, session
 
-    # Eğer .onnx dosyası yoksa, base64'ten çöz
-    if not os.path.exists(MODEL_PATH):
-        print("📥 Base64 model dosyası çözümleniyor...")
-        try:
-            with open(MODEL_B64_PATH, "rb") as encoded_file:
-                encoded_data = encoded_file.read()
-                with open(MODEL_PATH, "wb") as model_file:
-                    model_file.write(base64.b64decode(encoded_data))
-            print("✅ Model başarıyla oluşturuldu.")
-        except Exception as e:
-            print(f"❌ Decode hatası: {e}")
-            return
+    # Önce varsa eski model dosyasını sil
+    if os.path.exists(MODEL_PATH):
+        print("🧹 Eski model dosyası siliniyor...")
+        os.remove(MODEL_PATH)
 
-    # Tokenizer Hugging Face'ten yükleniyor
-    tokenizer = AutoTokenizer.from_pretrained("Kahsi13/DomatesRailway")
+    # Base64'ten modeli oluştur
+    print("📥 Base64 model dosyası çözümleniyor...")
+    try:
+        with open(MODEL_B64_PATH, "rb") as encoded_file:
+            encoded_data = encoded_file.read()
+            with open(MODEL_PATH, "wb") as model_file:
+                model_file.write(base64.b64decode(encoded_data))
+        print("✅ Model başarıyla oluşturuldu.")
+    except Exception as e:
+        print(f"❌ Decode hatası: {e}")
+        return
 
-    # ONNX modeli yükle
-    session = onnxruntime.InferenceSession(MODEL_PATH)
-    print("✅ Tokenizer ve model yüklendi.")
+    # Hugging Face'ten tokenizer yükle
+    try:
+        print("🔤 Tokenizer yükleniyor...")
+        tokenizer = AutoTokenizer.from_pretrained("Kahsi13/DomatesRailway")
+        print("✅ Tokenizer yüklendi.")
+    except Exception as e:
+        print(f"❌ Tokenizer yüklenemedi: {e}")
+        return
+
+    # ONNX modelini yükle
+    try:
+        print("📦 Model onnxruntime ile yükleniyor...")
+        session = onnxruntime.InferenceSession(MODEL_PATH)
+        print("✅ Model başarıyla yüklendi.")
+    except Exception as e:
+        print(f"❌ Model yüklenemedi: {e}")
 
 # Kullanıcıdan gelen metin yapısı
 class InputText(BaseModel):
