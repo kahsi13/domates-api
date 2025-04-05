@@ -5,6 +5,7 @@ import onnxruntime
 import numpy as np
 import os
 import base64
+import zipfile
 
 app = FastAPI()
 
@@ -16,32 +17,41 @@ def root():
 tokenizer = None
 session = None
 
-# Dosya yolları
+# Dosya adları
 MODEL_B64_PATH = "bert_model_base64.txt"
+MODEL_ZIP_PATH = "bert_model.zip"
 MODEL_PATH = "bert_domates_model_quant.onnx"
 
 @app.on_event("startup")
 def startup_event():
     global tokenizer, session
 
-    # Önce varsa eski model dosyasını sil
+    # Varsa eski model dosyasını sil
     if os.path.exists(MODEL_PATH):
-        print("🧹 Eski model dosyası siliniyor...")
         os.remove(MODEL_PATH)
 
-    # Base64'ten modeli oluştur
-    print("📥 Base64 model dosyası çözümleniyor...")
+    # ✅ Base64 -> zip dosyası oluştur
+    print("📥 Base64 model decode ediliyor...")
     try:
-        with open(MODEL_B64_PATH, "rb") as encoded_file:
-            encoded_data = encoded_file.read()
-            with open(MODEL_PATH, "wb") as model_file:
-                model_file.write(base64.b64decode(encoded_data))
-        print("✅ Model başarıyla oluşturuldu.")
+        with open(MODEL_B64_PATH, "rb") as f:
+            decoded = base64.b64decode(f.read())
+        with open(MODEL_ZIP_PATH, "wb") as f:
+            f.write(decoded)
+        print("✅ ZIP dosyası yazıldı.")
     except Exception as e:
-        print(f"❌ Decode hatası: {e}")
+        print(f"❌ Base64 decode hatası: {e}")
         return
 
-    # Hugging Face'ten tokenizer yükle
+    # ✅ Zip -> onnx dosyasını çıkar
+    try:
+        with zipfile.ZipFile(MODEL_ZIP_PATH, 'r') as zip_ref:
+            zip_ref.extractall(".")
+        print("✅ .onnx model çıkarıldı.")
+    except Exception as e:
+        print(f"❌ ZIP çıkarma hatası: {e}")
+        return
+
+    # ✅ Tokenizer yükle
     try:
         print("🔤 Tokenizer yükleniyor...")
         tokenizer = AutoTokenizer.from_pretrained("Kahsi13/DomatesRailway")
@@ -50,18 +60,19 @@ def startup_event():
         print(f"❌ Tokenizer yüklenemedi: {e}")
         return
 
-    # ONNX modelini yükle
+    # ✅ ONNX modeli yükle
     try:
-        print("📦 Model onnxruntime ile yükleniyor...")
+        print("📦 ONNX modeli yükleniyor...")
         session = onnxruntime.InferenceSession(MODEL_PATH)
         print("✅ Model başarıyla yüklendi.")
     except Exception as e:
         print(f"❌ Model yüklenemedi: {e}")
 
-# Kullanıcıdan gelen metin yapısı
+# Giriş modeli
 class InputText(BaseModel):
     text: str
 
+# Tahmin endpoint'i
 @app.post("/predict")
 def predict(input: InputText):
     try:
@@ -88,6 +99,5 @@ def predict(input: InputText):
         prediction = int(np.argmax(ort_outs[0]))
 
         return {"prediction": prediction}
-
     except Exception as e:
         return {"error": str(e)}
