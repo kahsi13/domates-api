@@ -76,6 +76,8 @@ class InputText(BaseModel):
 @app.post("/predict")
 def predict(input: InputText):
     try:
+        print("🧪 Gelen veri:", input)
+
         if tokenizer is None or session is None:
             return {"error": "⏳ Model yükleniyor, lütfen birazdan tekrar deneyin."}
 
@@ -99,5 +101,6 @@ def predict(input: InputText):
         prediction = int(np.argmax(ort_outs[0]))
 
         return {"prediction": prediction}
+
     except Exception as e:
         return {"error": str(e)}
